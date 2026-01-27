@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-test-script
+data:
+  test.js: |
+    import http from 'k6/http';
+    import { check, sleep } from 'k6';
+    import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
+
+    // Configurações de carga
+    export const options = {
+        stages: [
+            { duration: '1s', target: 2 },
+            { duration: '10s', target: 30 },
+            { duration: '10s', target: 60 },
+            { duration: '10s', target: 90 },
+            { duration: '10s', target: 120 },
+            { duration: '10s', target: 150 },
+            { duration: '10s', target: 180 },
+        ],
+    };
+
+    // Função para gerar uma matriz 20x20 com números aleatórios
+    function generateRandomMatrix(rows, cols) {
+        let matrix = [];
+        for (let i = 0; i < rows; i++) {
+            let row = [];
+            for (let j = 0; j < cols; j++) {
+                row.push(randomIntBetween(1, 100));
+            }
+            matrix.push(row);
+        }
+        return matrix;
+    }
+
+    // Função para gerar a matriz identidade 20x20
+    function generateIdentityMatrix(size) {
+        let matrix = [];
+        for (let i = 0; i < size; i++) {
+            let row = [];
+            for (let j = 0; j < size; j++) {
+                row.push(i === j ? 1 : 0);
+            }
+            matrix.push(row);
+        }
+        return matrix;
+    }
+
+    // Pré-geramos a identidade fora do default para economizar CPU
+    const identityMatrix = generateIdentityMatrix(20);
+
+    export default function () {
+        const apiUrl = 'http://matmul-flask-app-service:5050/'; // Lembre-se de colocar o IP correto
+
+        const payload = JSON.stringify({
+            A: JSON.stringify(generateRandomMatrix(20, 20)),
+            B: JSON.stringify(identityMatrix)
+        });
+
+        const params = {
+            headers: { 'Content-Type': 'application/json' },
+            tags: { name: 'Matmul' },
+            timeout: '5s',
+        };
+
+        const resMatmul = http.post(apiUrl, payload, params);
+
+        check(resMatmul, {
+            'status é 200': (r) => r.status === 200,
+            'tempo de resposta < 500ms': (r) => r.timings.duration < 500,
+        });
+
+        sleep(1);
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-job
+  labels:
+    app: k6-load-tester
+spec:
+  template:             # Adicionado
+    metadata:
+      labels:
+        app: k6-load-tester
+    spec:               # Adicionado
+      containers:
+      - name: k6
+        image: grafana/k6:latest
+        command: ["sh", "-c", "k6 run /scripts/test.js --out csv=/results/data.csv && echo 'Teste finalizado. Dormindo...' && sleep 600"]
+        volumeMounts:
+        - name: script-volume
+          mountPath: /scripts
+        - name: results-volume
+          mountPath: /results
+      restartPolicy: Never
+      volumes:
+      - name: script-volume
+        configMap:
+          name: k6-test-script
+      - name: results-volume
+        emptyDir: {}
