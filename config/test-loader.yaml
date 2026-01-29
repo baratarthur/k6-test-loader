@@ -51,7 +51,7 @@ data:
     const identityMatrix = generateIdentityMatrix(20);
 
     export default function () {
-        const apiUrl = 'http://matmul-flask-app-service:5050/'; // Lembre-se de colocar o IP correto
+        const apiUrl = 'http://192.168.5.20:5050/'; // Lembre-se de colocar o IP correto
 
         const payload = JSON.stringify({
             A: JSON.stringify(generateRandomMatrix(20, 20)),
