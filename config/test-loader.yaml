@@ -7,8 +7,12 @@ data:
     import http from 'k6/http';
     import { check, sleep } from 'k6';
     import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
+    import { Trend, Counter } from 'k6/metrics';
 
-    // Configurações de carga
+    // Métricas personalizadas
+    const latenciaMatmul = new Trend('custom_latency_matmul');
+    const rpsCounter = new Counter('custom_rps_matmul');
+
     export const options = {
         stages: [
             { duration: '1s', target: 2 },
@@ -21,7 +25,6 @@ data:
         ],
     };
 
-    // Função para gerar uma matriz 20x20 com números aleatórios
     function generateRandomMatrix(rows, cols) {
         let matrix = [];
         for (let i = 0; i < rows; i++) {
@@ -34,7 +37,6 @@ data:
         return matrix;
     }
 
-    // Função para gerar a matriz identidade 20x20
     function generateIdentityMatrix(size) {
         let matrix = [];
         for (let i = 0; i < size; i++) {
@@ -47,11 +49,10 @@ data:
         return matrix;
     }
 
-    // Pré-geramos a identidade fora do default para economizar CPU
     const identityMatrix = generateIdentityMatrix(20);
 
     export default function () {
-        const apiUrl = 'http://192.168.5.20:5050/'; // Lembre-se de colocar o IP correto
+        const apiUrl = 'http://192.168.5.20:5050/';
 
         const payload = JSON.stringify({
             A: JSON.stringify(generateRandomMatrix(20, 20)),
@@ -65,6 +66,13 @@ data:
         };
 
         const resMatmul = http.post(apiUrl, payload, params);
+
+        // --- Coleta de Métricas ---
+        // Registra a latência (duration) da requisição
+        latenciaMatmul.add(resMatmul.timings.duration);
+        
+        // Incrementa o contador de requisições para cálculo de RPS
+        rpsCounter.add(1);
 
         check(resMatmul, {
             'status é 200': (r) => r.status === 200,
