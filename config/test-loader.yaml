@@ -54,7 +54,7 @@ data:
     const identityMatrix = generateIdentityMatrix(20);
 
     export default function () {
-        const apiUrl = 'http://192.168.5.20:5050/';
+        const apiUrl = 'http://192.168.5.20:5050/multiply';
 
         const payload = JSON.stringify({
             A: JSON.stringify(generateRandomMatrix(20, 20)),

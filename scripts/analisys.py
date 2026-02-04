@@ -2,41 +2,48 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # 1. Carregar os dados
-# O k6 exporta o tempo em segundos desde o início do teste na coluna 'timestamp'
-df = pd.read_csv('results/microservice/results_round_1.csv')
+file_path = 'results/microservice/results_round_1 (1).csv'
+df = pd.read_csv(file_path)
 
-# Filtrar apenas as métricas de interesse
-latency = df[df['metric_name'] == 'http_req_duration']
-rps = df[df['metric_name'] == 'http_reqs']
+# --- MELHORIA: Filtragem de Sucesso ---
+# Filtramos apenas onde o status é 200 (OK) e a métrica é de uma requisição HTTP
+# Usamos .copy() para evitar o SettingWithCopyWarning do Pandas
+df_success = df[(df['status'] >= 200) & (df['status'] < 300)].copy()
 
-# Converter timestamp para segundos relativos (começando em 0)
-latency['time_sec'] = latency['timestamp'] - latency['timestamp'].min()
-rps['time_sec'] = rps['timestamp'] - rps['timestamp'].min()
+# 2. Filtrar métricas de interesse a partir apenas dos sucessos
+latency = df_success[df_success['metric_name'] == 'http_req_duration'].copy()
+rps = df_success[df_success['metric_name'] == 'http_reqs'].copy()
 
-# Agrupar por segundo para calcular a média de latência e soma de requisições
+# 3. Converter timestamp para segundos relativos
+# Garantimos que o cálculo use o início do teste global, não apenas o primeiro sucesso
+start_time = df['timestamp'].min()
+latency['time_sec'] = (latency['timestamp'] - start_time).astype(int)
+rps['time_sec'] = (rps['timestamp'] - start_time).astype(int)
+
+# 4. Agrupar por segundo
 latency_aggr = latency.groupby('time_sec')['metric_value'].mean()
 rps_aggr = rps.groupby('time_sec')['metric_value'].count()
 
-# 2. Configurar o estilo do gráfico
+# 5. Configurar o estilo do gráfico
 plt.style.use('seaborn-v0_8-whitegrid')
-fig, ax1 = plt.subplots(figsize=(10, 6))
+fig, ax1 = plt.subplots(figsize=(12, 6))
 
-# Configurações do Eixo Y1: Latency
-ax1.set_xlabel('Elapsed Time (seconds)', fontsize=12)
-ax1.set_ylabel('Latency (ms)', color='tab:blue', fontsize=12)
-ax1.plot(latency_aggr.index, latency_aggr.values, color='tab:blue', label='Average Latency', linewidth=2)
+# Eixo Y1: Latência (Média)
+ax1.set_xlabel('Tempo Decorrido (segundos)', fontsize=12)
+ax1.set_ylabel('Latência Média (ms)', color='tab:blue', fontsize=12)
+ax1.plot(latency_aggr.index, latency_aggr.values, color='tab:blue', label='Latência (Sucesso)', linewidth=2)
 ax1.tick_params(axis='y', labelcolor='tab:blue')
 
-# Configurações do Eixo Y2: Throughput (RPS)
+# Eixo Y2: Throughput (RPS)
 ax2 = ax1.twinx()
-ax2.set_ylabel('Throughput (Requests per Second)', color='tab:red', fontsize=12)
-ax2.plot(rps_aggr.index, rps_aggr.values, color='tab:red', linestyle='--', label='RPS', linewidth=2)
+ax2.set_ylabel('Requisições por Segundo (Sucesso)', color='tab:red', fontsize=12)
+ax2.plot(rps_aggr.index, rps_aggr.values, color='tab:red', linestyle='--', label='RPS (Sucesso)', linewidth=2)
 ax2.tick_params(axis='y', labelcolor='tab:red')
 
-# Título e Legendas
-plt.title('Performance Analysis: Matrix Multiplication API', fontsize=14, pad=20)
+# Título e Ajustes Finais
+plt.title('Análise de Performance: Apenas Requisições Bem-sucedidas (HTTP 2xx)', fontsize=14, pad=20)
 fig.tight_layout()
 
-# Salvar para o artigo em alta resolução (PDF ou PNG 300 DPI)
-plt.savefig('results/microservice/performance_analysis_1.pdf', format='pdf')
+# 6. Salvar e Mostrar
+plt.savefig('results/microservice/performance_analysis_success_only.pdf (1)', format='pdf')
 plt.show()
